@@ -47,11 +47,14 @@ jobs:
 
       - name: Save images
         run: |
-          docker images --format '{{.Repository}}:{{.Tag}}' | grep '^docker.io/percona/mysqld_exporter:' | tee images.txt
-          docker save -o mysqld_exporter-images.tar $(cat images.txt)
+          mkdir -p ctx/linux/amd64
+          cp build/mysqld_exporter_linux_amd64_v1/mysqld_exporter ctx/linux/amd64/
+          docker buildx build --load --platform linux/amd64 -f .scripts/Dockerfile -t mysqld_exporter:test ctx
+          docker run --rm mysqld_exporter:test --version
+          docker save -o mysqld_exporter-image-amd64.tar mysqld_exporter:test
 
       - name: Upload images
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: images
-          path: mysqld_exporter-images.tar
+          path: mysqld_exporter-image-amd64.tar
