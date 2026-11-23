@@ -390,7 +390,7 @@ func main() {
 			cfg.Collectors[scraperName] = true
 		}
 	}
-	handlerFunc := newHandler(cfg, *timeoutOffset, logger)
+	handlerFunc := perconaWrapHandler(newHandler(cfg, *timeoutOffset, logger), logger) // PERCONA: custom_query 429 guard
 	http.Handle(*metricsPath, promhttp.InstrumentMetricHandler(prometheus.DefaultRegisterer, handlerFunc))
 	if *metricsPath != "/" && *metricsPath != "" {
 		landingConfig := web.LandingConfig{

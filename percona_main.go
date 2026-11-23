@@ -17,6 +17,10 @@ package main
 // site there is marked with a "PERCONA:" comment.
 
 import (
+	"log/slog"
+	"net/http"
+	"sync/atomic"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/percona/mysqld_exporter/config"
@@ -31,4 +35,30 @@ func perconaGatherers(cfg config.Config, registry *prometheus.Registry) promethe
 		return prometheus.Gatherers{registry}
 	}
 	return prometheus.Gatherers{prometheus.DefaultGatherer, registry}
+}
+
+// perconaWrapHandler wraps the upstream /metrics handler.
+//
+// pmm-agent scrapes each custom_query resolution on its own request. A slow
+// custom query must not pile up concurrent executions on the database, so a
+// request for collect[]=custom_query.{hr,mr,lr} is refused with 429 while the
+// previous request for the same resolution is still running.
+func perconaWrapHandler(next http.HandlerFunc, logger *slog.Logger) http.HandlerFunc {
+	inFlight := map[string]*atomic.Bool{
+		"custom_query.hr": {},
+		"custom_query.mr": {},
+		"custom_query.lr": {},
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		queryCollect := r.URL.Query().Get("collect[]")
+		if busy, ok := inFlight[queryCollect]; ok {
+			if !busy.CompareAndSwap(false, true) {
+				logger.Warn("Received metrics request while previous still in progress: returning 429 Too Many Requests", "collect", queryCollect)
+				http.Error(w, "429 Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+			defer busy.Store(false)
+		}
+		next(w, r)
+	}
 }

@@ -15,6 +15,7 @@ require (
 	github.com/prometheus/exporter-toolkit v0.20.0
 	github.com/smartystreets/goconvey v1.8.1
 	gopkg.in/ini.v1 v1.67.3
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (

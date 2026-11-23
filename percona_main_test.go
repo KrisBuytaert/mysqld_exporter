@@ -14,9 +14,12 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promslog"
 
 	"github.com/percona/mysqld_exporter/config"
 )
@@ -36,5 +39,45 @@ func TestPerconaGatherers(t *testing.T) {
 		if got := len(perconaGatherers(cfg, registry)); got != tc.want {
 			t.Errorf("collectors %v: got %d gatherers, want %d", tc.collectors, got, tc.want)
 		}
+	}
+}
+
+func TestPerconaWrapHandlerCustomQueryGuard(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	h := perconaWrapHandler(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("collect[]") == "custom_query.hr" {
+			close(entered)
+			<-release
+		}
+	}, promslog.NewNopLogger())
+
+	done := make(chan struct{})
+	go func() {
+		h(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/metrics?collect[]=custom_query.hr", nil))
+		close(done)
+	}()
+	<-entered
+
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/metrics?collect[]=custom_query.hr", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("overlapping custom_query.hr request: got %d, want 429", rec.Code)
+	}
+
+	// Other resolutions are not blocked.
+	rec = httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/metrics?collect[]=custom_query.mr", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("custom_query.mr request: got %d, want 200", rec.Code)
+	}
+
+	close(release)
+	<-done
+	// Once the first request finished, the resolution is free again.
+	rec = httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/metrics?collect[]=global_status", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("global_status request: got %d, want 200", rec.Code)
 	}
 }

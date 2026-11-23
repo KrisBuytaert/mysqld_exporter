@@ -22,6 +22,10 @@ var perconaCollectors = map[string]bool{
 	// Exporter's own Go runtime and process metrics (PMM-2038, PMM-14440).
 	"standard.go":      false,
 	"standard.process": false,
+	// User-defined queries, one directory per resolution (PMM-2038).
+	"custom_query.hr": false,
+	"custom_query.mr": false,
+	"custom_query.lr": false,
 }
 
 // perconaCollectorDefaults extends upstream's default collector map.
