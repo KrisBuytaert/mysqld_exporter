@@ -28,6 +28,8 @@ var perconaCollectors = map[string]bool{
 	"custom_query.lr": false,
 	// upstream global_status, taken over by the Percona implementation (PMM-2038).
 	"global_status.prometheus": false,
+	// upstream info_schema.processlist, taken over by the Percona implementation.
+	"info_schema.processlist.prometheus": false,
 }
 
 // perconaCollectorDefaults extends upstream's default collector map.
