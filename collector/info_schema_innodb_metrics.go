@@ -128,6 +128,18 @@ func (ScrapeInnodbMetrics) Scrape(ctx context.Context, instance *instance, ch ch
 		); err != nil {
 			return err
 		}
+		// PERCONA: stable aliases and gauge overrides, see percona_innodb_metrics.go (PMM-15195).
+		metricKey := subsystem + "/" + name
+		if stable, ok := stableInnodbMetrics[metricKey]; ok && value >= 0 {
+			ch <- prometheus.MustNewConstMetric(
+				prometheus.NewDesc(
+					prometheus.BuildFQName(namespace, "innodb_metrics", stable.name),
+					stable.help, nil, nil,
+				),
+				prometheus.CounterValue,
+				value,
+			)
+		}
 		// Special handling of the "buffer_page_io" subsystem.
 		if subsystem == "buffer_page_io" {
 			match := bufferPageRE.FindStringSubmatch(name)
@@ -172,25 +184,55 @@ func (ScrapeInnodbMetrics) Scrape(ctx context.Context, instance *instance, ch ch
 			}
 		}
 		metricName := "innodb_metrics_" + subsystem + "_" + name
-		// MySQL returns counters named two different ways. "counter" and "status_counter"
-		// value >= 0 is necessary due to upstream bugs: http://bugs.mysql.com/bug.php?id=75966
-		if (metricType == "counter" || metricType == "status_counter") && value >= 0 {
-			description := prometheus.NewDesc(
-				prometheus.BuildFQName(namespace, informationSchema, metricName+"_total"),
+		metricDesc := func(suffix string) *prometheus.Desc {
+			return prometheus.NewDesc(
+				prometheus.BuildFQName(namespace, informationSchema, metricName+suffix),
 				comment, nil, nil,
 			)
+		}
+
+		if _, ok := innodbMetricGaugeOverrides[metricKey]; ok {
+			isCounter := metricType == "counter" || metricType == "status_counter"
+			// Some MySQL versions report these overridden metrics as counters
+			// and can emit the -1 sentinel due to an upstream bug
+			// (http://bugs.mysql.com/bug.php?id=75966). A negative value is not
+			// a valid sample for either the gauge or the counter, so skip it.
+			if isCounter && value < 0 {
+				continue
+			}
+			ch <- prometheus.MustNewConstMetric(metricDesc(""), prometheus.GaugeValue, value)
+			// Preserve the historical counter name for users that already query
+			// it while also exposing the correctly typed gauge above.
+			if isCounter {
+				ch <- prometheus.MustNewConstMetric(metricDesc("_total"), prometheus.CounterValue, value)
+			}
+			continue
+		}
+
+		// Only the known cumulative rows listed in stableInnodbMetrics can
+		// safely be exposed as counters. Other set rows hold derived values
+		// such as averages or per-call figures that may decrease.
+		isSetRow := metricType == "set_member" || metricType == "set_owner"
+		if _, ok := stableInnodbMetrics[metricKey]; ok && isSetRow && value >= 0 {
+			// Both row types were historically exported as an unsuffixed
+			// gauge. Preserve that name and add the correctly typed counter so
+			// existing and current dashboards both keep working.
+			ch <- prometheus.MustNewConstMetric(metricDesc(""), prometheus.GaugeValue, value)
+			ch <- prometheus.MustNewConstMetric(metricDesc("_total"), prometheus.CounterValue, value)
+			continue
+		}
+
+		// MySQL returns counters named two different ways. "counter" and "status_counter".
+		// value >= 0 is necessary due to upstream bugs: http://bugs.mysql.com/bug.php?id=75966
+		if (metricType == "counter" || metricType == "status_counter") && value >= 0 {
 			ch <- prometheus.MustNewConstMetric(
-				description,
+				metricDesc("_total"),
 				prometheus.CounterValue,
 				value,
 			)
 		} else {
-			description := prometheus.NewDesc(
-				prometheus.BuildFQName(namespace, informationSchema, metricName),
-				comment, nil, nil,
-			)
 			ch <- prometheus.MustNewConstMetric(
-				description,
+				metricDesc(""),
 				prometheus.GaugeValue,
 				value,
 			)
