@@ -50,7 +50,7 @@ var (
 	configMycnf = kingpin.Flag(
 		"config.my-cnf",
 		"Path to .my.cnf file to read MySQL credentials from.",
-	).Default(".my.cnf").String()
+	).Default(perconaDefaultMyCnf()).String() // PERCONA: $HOME/.my.cnf
 	mysqldAddress = kingpin.Flag(
 		"mysqld.address",
 		"Address to use for connecting to MySQL",
@@ -316,7 +316,7 @@ func newHandler(baseConfig config.Config, timeoutOffsetSeconds float64, logger *
 
 		gatherers := perconaGatherers(cfg, registry) // PERCONA: no default gatherer with standard.* scrapers
 		// Delegate http serving to Prometheus client library, which will call collector.Collect.
-		h := promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{})
+		h := promhttp.HandlerFor(gatherers, perconaHandlerOpts(logger)) // PERCONA: ContinueOnError
 		h.ServeHTTP(w, r)
 	}
 }
@@ -337,6 +337,7 @@ func validateExporterFlags(maxOpenConns, queryTimeout int, timeoutOffsetSeconds 
 func main() {
 	// Generate ON/OFF flags for all scrapers.
 	defaultConfig := config.NewConfigWithDefaults()
+	perconaDisableCollectorsByDefault(&defaultConfig) // PERCONA: all collectors off by default
 	scraperFlags := map[string]*bool{}
 	for _, scraper := range collector.AllScrapers(defaultConfig) {
 		enabledByDefault := defaultConfig.Collectors[scraper.Name()]
@@ -382,6 +383,10 @@ func main() {
 
 	// Register only scrapers enabled by flag.
 	cfg := configFromFlags(scraperFlags)
+	if err := perconaConfigure(&cfg, logger); err != nil { // PERCONA: --collect.all, --exporter.max-open-conns
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
 	for _, scraper := range collector.EnabledScrapers(cfg) {
 		logger.Info("Scraper enabled", "scraper", scraper.Name())
 	}

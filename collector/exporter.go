@@ -150,7 +150,7 @@ func New(ctx context.Context, dsn string, scrapers []Scraper, logger *slog.Logge
 		dsnParams = append(dsnParams, sessionSettingsParam)
 	}
 
-	if strings.Contains(dsn, "?") {
+	if dsnHasParams(dsn) { // PERCONA: a '?' in the password is not a parameter separator (PMM-13962)
 		dsn = dsn + "&"
 	} else {
 		dsn = dsn + "?"
@@ -214,7 +214,7 @@ func (e *Exporter) scrape(ctx context.Context, ch chan<- prometheus.Metric) floa
 			scrapeCtx, cancel := e.withQueryTimeoutContext(ctx)
 			defer cancel()
 			if err := scraper.Scrape(scrapeCtx, instance, ch, e.logger.With("scraper", scraper.Name())); err != nil {
-				e.logger.Error("Error from scraper", "scraper", scraper.Name(), "target", e.getTargetFromDsn(), "err", err)
+				e.logScraperError(scraper, err) // PERCONA: debug level unless --collector.failures.error
 				collectorSuccess = 0.0
 			}
 			ch <- prometheus.MustNewConstMetric(mysqlScrapeCollectorSuccess, prometheus.GaugeValue, collectorSuccess, label)

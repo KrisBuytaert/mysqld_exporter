@@ -44,6 +44,7 @@ func newInstance(ctx context.Context, dsn string, maxOpenConns int) (*instance, 
 	}
 	db.SetMaxOpenConns(maxOpenConns)
 	db.SetMaxIdleConns(1)
+	perconaTunePool(db) // PERCONA: --exporter.max-idle-conns, --exporter.conn-max-lifetime
 	i.db = db
 
 	version, versionString, err := queryVersion(ctx, db)
