@@ -33,6 +33,8 @@ var perconaCollectors = map[string]bool{
 	// upstream innodb_cmp/innodb_cmpmem, taken over by the Percona implementations.
 	"info_schema.innodb_cmp.prometheus":    false,
 	"info_schema.innodb_cmpmem.prometheus": false,
+	// SHOW PLUGINS (PMM-11267).
+	"plugins": false,
 }
 
 // perconaCollectorDefaults extends upstream's default collector map.
