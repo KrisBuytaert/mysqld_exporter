@@ -7,6 +7,10 @@
 
 Prometheus exporter for MySQL server metrics.
 
+> **Percona build.** This is Percona's fork, used by PMM. Collector defaults,
+> several collectors and some flags differ from upstream; see
+> [PERCONA.md](PERCONA.md).
+
 Supported versions:
 * MySQL >= 5.6.
 * MariaDB >= 10.3
