@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// PERCONA: https://jira.percona.com/browse/PMM-4001 explains STRAIGHT_JOIN usage; PMM-15161 matches every unsigned column_type.
 const infoSchemaAutoIncrementQuery = `
 		SELECT c.table_schema, c.table_name, column_name, auto_increment,
 		  pow(2, case data_type
@@ -31,7 +32,7 @@ const infoSchemaAutoIncrementQuery = `
 		    when 'mediumint' then 23
 		    when 'int'       then 31
 		    when 'bigint'    then 63
-		    end+(column_type like '% unsigned'))-1 as max_int
+		    end+(column_type like '%unsigned%'))-1 as max_int
 		  FROM information_schema.columns c
 		  STRAIGHT_JOIN information_schema.tables t ON (BINARY c.table_schema=t.table_schema AND BINARY c.table_name=t.table_name)
 		  WHERE c.extra = 'auto_increment' AND t.auto_increment IS NOT NULL

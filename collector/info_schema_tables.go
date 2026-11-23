@@ -90,6 +90,14 @@ func (ScrapeTableSchema) Version() float64 {
 func (s ScrapeTableSchema) Scrape(ctx context.Context, instance *instance, ch chan<- prometheus.Metric, logger *slog.Logger) error {
 	var dbList []string
 	db := instance.getDB()
+
+	// PERCONA: PMM-5684. MySQL >= 8.0 caches table statistics; read them fresh.
+	// The comment syntax makes older servers and MariaDB ignore it.
+	_, err := db.ExecContext(ctx, "/*!80000 set session information_schema_stats_expiry=0 */")
+	if err != nil {
+		return err
+	}
+
 	if s.Databases == "*" {
 		dbListRows, err := db.QueryContext(ctx, dbListQuery)
 		if err != nil {
