@@ -57,10 +57,19 @@ func TestPScrapeProcesslistQuerySelection(t *testing.T) {
 			defer db.Close()
 
 			inst := &instance{
-				db:                         db,
-				flavor:                     tc.flavor,
-				version:                    tc.version,
-				isPerformanceSchemaEnabled: tc.perfSchemaEnabled,
+				db:      db,
+				flavor:  tc.flavor,
+				version: tc.version,
+			}
+
+			// performance_schema is only queried when the version qualifies.
+			if tc.flavor == FlavorMySQL && (tc.version.GTE(v8_0_22) || (tc.version.GTE(v5_7_39) && tc.version.LT(v8_0_0))) {
+				enabled := "0"
+				if tc.perfSchemaEnabled {
+					enabled = "1"
+				}
+				mock.ExpectQuery(sanitizeQuery(performanceSchemaQuery)).
+					WillReturnRows(sqlmock.NewRows([]string{"@@performance_schema"}).AddRow(enabled))
 			}
 
 			expectedSQL := fmt.Sprintf(pInfoSchemaProcesslistQuery, tc.expectedSchema, 0)

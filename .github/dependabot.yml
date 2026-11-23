@@ -1,10 +1,22 @@
 ---
+# PERCONA: upstream's groups (synced from prometheus/prometheus) plus the
+# Percona tools module and Docker base images, on a weekly cadence.
 version: 2
 updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      golang.org-x:
+        patterns:
+          - "golang.org/x/*"
+      prometheus:
+        patterns:
+          - "github.com/prometheus/*"
+      testcontainers:
+        patterns:
+          - "github.com/testcontainers/*"
   - package-ecosystem: "gomod"
     directory: "/tools"
     schedule:

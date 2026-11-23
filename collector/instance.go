@@ -21,51 +21,46 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/kingpin/v2"
 	"github.com/blang/semver/v4"
 )
 
 const (
-	FlavorMySQL            = "mysql"
-	FlavorMariaDB          = "mariadb"
-	versionQuery           = "SELECT @@version;"
-	performanceSchemaQuery = "SELECT @@performance_schema;"
-)
-
-var (
-	exporterMaxOpenConns = kingpin.Flag(
-		"exporter.max-open-conns",
-		"Maximum number of open connections to the database. https://golang.org/pkg/database/sql/#DB.SetMaxOpenConns",
-	).Default("3").Int()
-	exporterMaxIdleConns = kingpin.Flag(
-		"exporter.max-idle-conns",
-		"Maximum number of connections in the idle connection pool. https://golang.org/pkg/database/sql/#DB.SetMaxIdleConns",
-	).Default("3").Int()
-	exporterConnMaxLifetime = kingpin.Flag(
-		"exporter.conn-max-lifetime",
-		"Maximum amount of time a connection may be reused. https://golang.org/pkg/database/sql/#DB.SetConnMaxLifetime",
-	).Default("1m").Duration()
+	FlavorMySQL   = "mysql"
+	FlavorMariaDB = "mariadb"
 )
 
 type instance struct {
-	db                         *sql.DB
-	flavor                     string
-	version                    semver.Version
-	versionMajorMinor          float64
-	isPerformanceSchemaEnabled bool
+	db                *sql.DB
+	flavor            string
+	version           semver.Version
+	versionMajorMinor float64
 }
 
-func (i *instance) loadMetadata(ctx context.Context) error {
-	version, versionString, err := queryVersion(ctx, i.db)
+func newInstance(ctx context.Context, dsn string, maxOpenConns int) (*instance, error) {
+	i := &instance{}
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(1)
+	perconaTunePool(db) // PERCONA: --exporter.max-idle-conns, --exporter.conn-max-lifetime
+	i.db = db
+
+	version, versionString, err := queryVersion(ctx, db)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+
 	i.version = version
 
 	versionMajorMinor, err := strconv.ParseFloat(fmt.Sprintf("%d.%d", i.version.Major, i.version.Minor), 64)
 	if err != nil {
-		return err
+		db.Close()
+		return nil, err
 	}
+
 	i.versionMajorMinor = versionMajorMinor
 
 	if strings.Contains(strings.ToLower(versionString), "mariadb") {
@@ -74,61 +69,20 @@ func (i *instance) loadMetadata(ctx context.Context) error {
 		i.flavor = FlavorMySQL
 	}
 
-	isPerformanceSchemaEnabled, err := queryPerformanceSchemaEnabled(ctx, i.db)
-	if err != nil {
-		return err
-	}
-	i.isPerformanceSchemaEnabled = isPerformanceSchemaEnabled
-
-	return nil
-}
-
-func newInstance(ctx context.Context, dsn string) (*instance, error) {
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	return newInstanceFromDB(ctx, db)
-}
-
-func newInstanceFromDB(ctx context.Context, db *sql.DB) (*instance, error) {
-	i := &instance{db: db}
-	i.db.SetMaxOpenConns(*exporterMaxOpenConns)
-	i.db.SetMaxIdleConns(*exporterMaxIdleConns)
-	i.db.SetConnMaxLifetime(*exporterConnMaxLifetime)
-
-	if err := i.loadMetadata(ctx); err != nil {
-		i.db.Close()
-		return nil, err
-	}
-
 	return i, nil
 }
 
-// queryPerformanceSchemaEnabled reports whether performance_schema is enabled in the server
-func queryPerformanceSchemaEnabled(ctx context.Context, db *sql.DB) (bool, error) {
-	var enabled uint8
-	err := db.QueryRowContext(ctx, performanceSchemaQuery).Scan(&enabled)
-	if err != nil {
-		return false, fmt.Errorf("failed to query performance_schema status: %w", err)
-	}
-	return enabled == 1, nil
-}
-
-// getDB returns the database connection for the instance.
 func (i *instance) getDB() *sql.DB {
 	return i.db
 }
 
-// Close closes the database connection.
 func (i *instance) Close() error {
 	return i.db.Close()
 }
 
 // Ping checks connection availability and possibly invalidates the connection if it fails.
-func (i *instance) Ping() error {
-	if err := i.db.Ping(); err != nil {
+func (i *instance) Ping(ctx context.Context) error {
+	if err := i.db.PingContext(ctx); err != nil {
 		if cerr := i.Close(); cerr != nil {
 			return err
 		}
@@ -144,7 +98,7 @@ var versionRegex = regexp.MustCompile(`^((\d+)(\.\d+)(\.\d+))`)
 
 func queryVersion(ctx context.Context, db *sql.DB) (semver.Version, string, error) {
 	var version string
-	err := db.QueryRowContext(ctx, versionQuery).Scan(&version)
+	err := db.QueryRowContext(ctx, "SELECT @@version;").Scan(&version)
 	if err != nil {
 		return semver.Version{}, version, err
 	}

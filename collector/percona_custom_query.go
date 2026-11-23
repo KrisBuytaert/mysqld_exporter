@@ -32,6 +32,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 var (
@@ -80,10 +82,10 @@ type ColumnMapping struct {
 // MetricMap stores the prometheus metric description which a given column will
 // be mapped to by the collector.
 type MetricMap struct {
-	discard    bool                              // Should metric be discarded during mapping?
-	vtype      prometheus.ValueType              // Prometheus valuetype.
-	desc       *prometheus.Desc                  // Prometheus descriptor.
-	conversion func(interface{}) (float64, bool) // Conversion function to turn MySQL result into float64.
+	discard    bool                      // Should metric be discarded during mapping?
+	vtype      prometheus.ValueType      // Prometheus valuetype.
+	desc       *prometheus.Desc          // Prometheus descriptor.
+	conversion func(any) (float64, bool) // Conversion function to turn MySQL result into float64.
 }
 
 // MetricMapNamespace groups metric maps under a shared set of labels.
@@ -173,7 +175,7 @@ func (scq ScrapeCustomQuery) Scrape(ctx context.Context, instance *instance, ch 
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaller interface.
-func (cu *ColumnUsage) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (cu *ColumnUsage) UnmarshalYAML(unmarshal func(any) error) error {
 	var value string
 	if err := unmarshal(&value); err != nil {
 		return err
@@ -189,7 +191,7 @@ func (cu *ColumnUsage) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements yaml.Unmarshaller.
-func (cm *ColumnMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (cm *ColumnMapping) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain ColumnMapping
 	return unmarshal((*plain)(cm))
 }
@@ -198,7 +200,7 @@ func (cm *ColumnMapping) UnmarshalYAML(unmarshal func(interface{}) error) error 
 // Added queries do not respect version requirements, because it is assumed that
 // the user knows what they are doing with their version of mysql.
 func addQueries(content []byte, exporterMap map[string]MetricMapNamespace, customQueryMap map[string]string, logger *slog.Logger) error {
-	var extra map[string]interface{}
+	var extra map[string]any
 	err := yaml.Unmarshal(content, &extra)
 	if err != nil {
 		return err
@@ -207,7 +209,7 @@ func addQueries(content []byte, exporterMap map[string]MetricMapNamespace, custo
 	metricMaps := make(map[string]map[string]ColumnMapping)
 	for metric, specs := range extra {
 		logger.Debug("msg", "New user metric namespace from YAML", metric)
-		specMap, ok := specs.(map[interface{}]interface{})
+		specMap, ok := specs.(map[any]any)
 		if !ok {
 			return fmt.Errorf("incorrect yaml format for %+v", specs)
 		}
@@ -218,8 +220,8 @@ func addQueries(content []byte, exporterMap map[string]MetricMapNamespace, custo
 				customQueryMap[metric] = query
 
 			case "metrics":
-				for _, c := range value.([]interface{}) {
-					column := c.(map[interface{}]interface{})
+				for _, c := range value.([]any) {
+					column := c.(map[any]any)
 					for n, a := range column {
 						var columnMapping ColumnMapping
 						// Fetch the metric map we want to work on.
@@ -232,7 +234,7 @@ func addQueries(content []byte, exporterMap map[string]MetricMapNamespace, custo
 
 						// Get name.
 						name := n.(string)
-						for attrKey, attrVal := range a.(map[interface{}]interface{}) {
+						for attrKey, attrVal := range a.(map[any]any) {
 							switch attrKey.(string) {
 							case "usage":
 								usage, err := stringToColumnUsage(attrVal.(string))
@@ -278,7 +280,7 @@ func makeDescMap(metricMaps map[string]map[string]ColumnMapping, exporterMap map
 			case discard, label:
 				thisMap[columnName] = MetricMap{
 					discard: true,
-					conversion: func(_ interface{}) (float64, bool) {
+					conversion: func(_ any) (float64, bool) {
 						return math.NaN(), true
 					},
 				}
@@ -287,7 +289,7 @@ func makeDescMap(metricMaps map[string]map[string]ColumnMapping, exporterMap map
 					vtype: prometheus.CounterValue,
 					desc: prometheus.NewDesc(fmt.Sprintf("%s_%s", namespace, columnName),
 						columnMapping.description, constLabels, nil),
-					conversion: func(in interface{}) (float64, bool) {
+					conversion: func(in any) (float64, bool) {
 						return dbToFloat64(in, logger)
 					},
 				}
@@ -296,7 +298,7 @@ func makeDescMap(metricMaps map[string]map[string]ColumnMapping, exporterMap map
 					vtype: prometheus.GaugeValue,
 					desc: prometheus.NewDesc(fmt.Sprintf("%s_%s", namespace, columnName),
 						columnMapping.description, constLabels, nil),
-					conversion: func(in interface{}) (float64, bool) {
+					conversion: func(in any) (float64, bool) {
 						return dbToFloat64(in, logger)
 					},
 				}
@@ -305,7 +307,7 @@ func makeDescMap(metricMaps map[string]map[string]ColumnMapping, exporterMap map
 					vtype: prometheus.GaugeValue,
 					desc: prometheus.NewDesc(fmt.Sprintf("%s_%s", namespace, columnName),
 						columnMapping.description, constLabels, nil),
-					conversion: func(in interface{}) (float64, bool) {
+					conversion: func(in any) (float64, bool) {
 						text, ok := in.(string)
 						if !ok {
 							return math.NaN(), false
@@ -323,7 +325,7 @@ func makeDescMap(metricMaps map[string]map[string]ColumnMapping, exporterMap map
 					vtype: prometheus.GaugeValue,
 					desc: prometheus.NewDesc(fmt.Sprintf("%s_%s_milliseconds", namespace, columnName),
 						columnMapping.description, constLabels, nil),
-					conversion: func(in interface{}) (float64, bool) {
+					conversion: func(in any) (float64, bool) {
 						var durationString string
 						switch t := in.(type) {
 						case []byte:
@@ -377,7 +379,7 @@ func stringToColumnUsage(s string) (ColumnUsage, error) {
 
 // Convert "database/sql value" types to float64s for Prometheus consumption.
 // Null types are mapped to NaN. string and []byte types are mapped as NaN and !ok.
-func dbToFloat64(t interface{}, logger *slog.Logger) (float64, bool) {
+func dbToFloat64(t any, logger *slog.Logger) (float64, bool) {
 	switch v := t.(type) {
 	case uint64:
 		return float64(v), true
@@ -411,7 +413,7 @@ func dbToFloat64(t interface{}, logger *slog.Logger) (float64, bool) {
 }
 
 // Convert "database/sql value" to string for Prometheus labels. Null types are mapped to empty strings.
-func dbToString(t interface{}) (string, bool) {
+func dbToString(t any) (string, bool) {
 	switch v := t.(type) {
 	case int64:
 		return strconv.FormatInt(v, 10), true
@@ -464,8 +466,8 @@ func queryNamespaceMapping(ctx context.Context, ch chan<- prometheus.Metric,
 		columnIdx[n] = i
 	}
 
-	columnData := make([]interface{}, len(columnNames))
-	scanArgs := make([]interface{}, len(columnNames))
+	columnData := make([]any, len(columnNames))
+	scanArgs := make([]any, len(columnNames))
 	for i := range columnData {
 		scanArgs[i] = &columnData[i]
 	}
@@ -547,4 +549,12 @@ func queryNamespaceMappings(ctx context.Context, ch chan<- prometheus.Metric,
 	}
 
 	return namespaceErrors
+}
+
+func init() {
+	perconaExtraScrapers = append(perconaExtraScrapers,
+		func(config.Config) Scraper { return ScrapeCustomQuery{Resolution: HR} },
+		func(config.Config) Scraper { return ScrapeCustomQuery{Resolution: MR} },
+		func(config.Config) Scraper { return ScrapeCustomQuery{Resolution: LR} },
+	)
 }

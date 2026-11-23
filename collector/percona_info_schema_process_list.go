@@ -17,6 +17,7 @@ package collector
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -24,6 +25,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/blang/semver/v4"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 const (
@@ -49,9 +52,13 @@ var (
 
 // Tunable flags.
 var (
-	pProcesslistMinTime = kingpin.Flag(
-		"collect.info_schema.processlist.min_time",
-		"Minimum time a thread must be in each state to be counted",
+	// The Percona scraper owns --collect.info_schema.processlist.min_time
+	// (defined by upstream in mysqld_exporter.go and passed in through
+	// config.InfoSchemaProcesslistConfig). The upstream scraper, exposed as
+	// info_schema.processlist.prometheus, keeps its own flag as on Percona main.
+	processlistMinTimePrometheus = kingpin.Flag(
+		"collect.info_schema.processlist.min_time.prometheus",
+		"Minimum time a thread must be in each state to be counted (info_schema.processlist.prometheus)",
 	).Default("0").Int()
 	// Prometheus descriptors.
 	pProcesslistCountDesc = prometheus.NewDesc(
@@ -146,8 +153,8 @@ var (
 )
 
 func deriveThreadState(command string, state string) string {
-	normCmd := strings.Replace(strings.ToLower(command), "_", " ", -1)
-	normState := strings.Replace(strings.ToLower(state), "_", " ", -1)
+	normCmd := strings.ReplaceAll(strings.ToLower(command), "_", " ")
+	normState := strings.ReplaceAll(strings.ToLower(state), "_", " ")
 	// check if it's already a valid state
 	_, knownState := threadStateCounterMap[normState]
 	if knownState {
@@ -179,7 +186,7 @@ func deriveThreadState(command string, state string) string {
 }
 
 // PScrapeProcesslist collects from `information_schema.processlist`.
-type PScrapeProcesslist struct{}
+type PScrapeProcesslist config.InfoSchemaProcesslistConfig
 
 // Name of the Scraper. Should be unique.
 func (PScrapeProcesslist) Name() string {
@@ -197,21 +204,24 @@ func (PScrapeProcesslist) Version() float64 {
 }
 
 // Scrape collects data from database connection and sends it over channel as prometheus metric.
-func (PScrapeProcesslist) Scrape(ctx context.Context, instance *instance, ch chan<- prometheus.Metric, logger *slog.Logger) error {
-	// Prefer querying performance_schema.processlist instead of information_schema.processlist to avoid negative perf consequences
-	// Supported by Percona Server/MySQL >=5.7.39 and >=8.0.22
-	usePerfSchema := instance.flavor == FlavorMySQL &&
-		instance.isPerformanceSchemaEnabled &&
-		(instance.version.GTE(v8_0_22) ||
-			(instance.version.GTE(v5_7_39) && instance.version.LT(v8_0_0)))
+func (s PScrapeProcesslist) Scrape(ctx context.Context, instance *instance, ch chan<- prometheus.Metric, logger *slog.Logger) error {
+	db := instance.getDB()
 
+	// Prefer querying performance_schema.processlist instead of information_schema.processlist to avoid negative perf consequences
+	// Supported by Percona Server/MySQL >=5.7.39 and >=8.0.22, and only when performance_schema is enabled.
 	schema := processlistInfoSchema
-	if usePerfSchema {
-		schema = processlistPerfSchema
+	if instance.flavor == FlavorMySQL &&
+		(instance.version.GTE(v8_0_22) ||
+			(instance.version.GTE(v5_7_39) && instance.version.LT(v8_0_0))) {
+		enabled, err := queryPerformanceSchemaEnabled(ctx, db)
+		if err != nil {
+			logger.Debug("Falling back to information_schema.processlist", "err", err)
+		} else if enabled {
+			schema = processlistPerfSchema
+		}
 	}
 
-	processQuery := fmt.Sprintf(pInfoSchemaProcesslistQuery, schema, *pProcesslistMinTime)
-	db := instance.getDB()
+	processQuery := fmt.Sprintf(pInfoSchemaProcesslistQuery, schema, s.MinTime)
 	processlistRows, err := db.QueryContext(ctx, processQuery)
 	if err != nil {
 		return err
@@ -250,6 +260,32 @@ func (PScrapeProcesslist) Scrape(ctx context.Context, instance *instance, ch cha
 	}
 
 	return nil
+}
+
+// queryPerformanceSchemaEnabled reports whether performance_schema is enabled.
+// Percona main read this once per connection in newInstance; it is only
+// needed here, so it is queried only when the server version qualifies.
+func queryPerformanceSchemaEnabled(ctx context.Context, db *sql.DB) (bool, error) {
+	var enabled uint8
+	if err := db.QueryRowContext(ctx, performanceSchemaQuery).Scan(&enabled); err != nil {
+		return false, fmt.Errorf("failed to query performance_schema status: %w", err)
+	}
+	return enabled == 1, nil
+}
+
+const performanceSchemaQuery = "SELECT @@performance_schema"
+
+func init() {
+	perconaReplacements[informationSchema+".processlist"] = func(cfg config.Config) Scraper {
+		return PScrapeProcesslist(cfg.InfoSchemaProcesslist)
+	}
+	perconaUpstreamVariants[informationSchema+".processlist"] = func(cfg config.Config) Scraper {
+		c := cfg.InfoSchemaProcesslist
+		if processlistMinTimePrometheus != nil {
+			c.MinTime = *processlistMinTimePrometheus
+		}
+		return ScrapeProcesslist(c)
+	}
 }
 
 // check interface

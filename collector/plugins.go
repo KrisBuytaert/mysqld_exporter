@@ -6,6 +6,8 @@ import (
 	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 const (
@@ -69,3 +71,7 @@ func (ScrapePlugins) Scrape(ctx context.Context, instance *instance, ch chan<- p
 
 // check interface
 var _ Scraper = ScrapePlugins{}
+
+func init() {
+	perconaExtraScrapers = append(perconaExtraScrapers, func(config.Config) Scraper { return ScrapePlugins{} })
+}

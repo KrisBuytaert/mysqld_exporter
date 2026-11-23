@@ -1,0 +1,8 @@
+[client]
+user = test
+password = "UfY9s73Gx`~!?@#$%^&*(){}[]<>|/:;,.-_+="
+host = server2
+[client.pmm]
+user = pmm
+password = Exp#1$%x
+host = server2

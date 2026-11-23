@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -333,7 +334,7 @@ func dumpMetricsWithMultipleLabelSets(newMetricsCollection MetricsCollection) {
 			for i := 0; !found && i < len(newMetricLabels); i++ {
 				lbl := newMetricLabels[i]
 
-				for j := 0; j < len(newMetricLabels); j++ {
+				for j := range newMetricLabels {
 					if i == j {
 						continue
 					}
@@ -408,20 +409,14 @@ func arrIsSubsetOf(a, b []string) bool {
 }
 
 func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(s, e)
 }
 
 // groupByMetrics returns labels grouped by metric
 func groupByMetrics(metrics []Metric) map[string][]string {
 	mtr := make(map[string][]string)
 
-	for i := 0; i < len(metrics); i++ {
+	for i := range metrics {
 		metric := metrics[i]
 		if _, ok := mtr[metric.name]; ok {
 			labels := mtr[metric.name]
@@ -438,7 +433,7 @@ func groupByMetrics(metrics []Metric) map[string][]string {
 func parseMetrics(metrics []string) []Metric {
 	metricsLength := len(metrics)
 	metricsData := make([]Metric, 0, metricsLength)
-	for i := 0; i < metricsLength; i++ {
+	for i := range metricsLength {
 		metricRawStr := metrics[i]
 		if metricRawStr == "" || strings.HasPrefix(metricRawStr, "# ") {
 			continue
@@ -495,7 +490,7 @@ func dumpMetrics(oldMetrics, newMetrics MetricsCollection) {
 func getMetricNames(metrics []string) []string {
 	length := len(metrics)
 	ret := make([]string, length)
-	for i := 0; i < length; i++ {
+	for i := range length {
 		str := metrics[i]
 		if str == "" || strings.HasPrefix(str, "# ") {
 			ret[i] = str

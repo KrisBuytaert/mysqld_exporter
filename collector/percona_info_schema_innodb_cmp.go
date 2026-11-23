@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 const pInnodbCmpQuery = `
@@ -109,7 +111,7 @@ func (PScrapeInnodbCmp) Scrape(ctx context.Context, instance *instance, ch chan<
 	var (
 		client             string                                // Holds the client name, which should be in column 0.
 		clientStatData     = make([]float64, len(columnNames)-1) // 1 less because of the client column.
-		clientStatScanArgs = make([]interface{}, len(columnNames))
+		clientStatScanArgs = make([]any, len(columnNames))
 	)
 
 	clientStatScanArgs[0] = &client
@@ -141,3 +143,7 @@ func (PScrapeInnodbCmp) Scrape(ctx context.Context, instance *instance, ch chan<
 
 // check interface
 var _ Scraper = PScrapeInnodbCmp{}
+
+func init() {
+	perconaReplacements[informationSchema+".innodb_cmp"] = func(config.Config) Scraper { return PScrapeInnodbCmp{} }
+}

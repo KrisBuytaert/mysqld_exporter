@@ -19,10 +19,11 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// https://jira.percona.com/browse/PMM-4001 explains STRAIGHT_JOIN usage.
+// PERCONA: https://jira.percona.com/browse/PMM-4001 explains STRAIGHT_JOIN usage; PMM-15161 matches every unsigned column_type.
 const infoSchemaAutoIncrementQuery = `
 		SELECT c.table_schema, c.table_name, column_name, auto_increment,
 		  pow(2, case data_type
@@ -52,7 +53,7 @@ var (
 )
 
 // ScrapeAutoIncrementColumns collects auto_increment column information.
-type ScrapeAutoIncrementColumns struct{}
+type ScrapeAutoIncrementColumns config.EmptyConfig
 
 // Name of the Scraper. Should be unique.
 func (ScrapeAutoIncrementColumns) Name() string {

@@ -16,9 +16,12 @@ package collector
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 type standardGo struct {
@@ -81,4 +84,18 @@ func (standardProcess) Version() float64 {
 func (s standardProcess) Scrape(ctx context.Context, instance *instance, ch chan<- prometheus.Metric, logger *slog.Logger) error {
 	s.c.Collect(ch)
 	return nil
+}
+
+// The Go and process collectors are created once: AllScrapers runs for every
+// request since upstream v0.20, and these collectors hold no per-request state.
+var (
+	standardGoScraper      = sync.OnceValue(NewStandardGo)
+	standardProcessScraper = sync.OnceValue(NewStandardProcess)
+)
+
+func init() {
+	perconaExtraScrapers = append(perconaExtraScrapers,
+		func(config.Config) Scraper { return standardGoScraper() },
+		func(config.Config) Scraper { return standardProcessScraper() },
+	)
 }

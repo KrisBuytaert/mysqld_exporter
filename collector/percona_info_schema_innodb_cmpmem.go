@@ -20,6 +20,8 @@ import (
 	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 const pInnodbCmpMemQuery = `
@@ -101,3 +103,7 @@ func (PScrapeInnodbCmpMem) Scrape(ctx context.Context, instance *instance, ch ch
 
 // check interface
 var _ Scraper = PScrapeInnodbCmpMem{}
+
+func init() {
+	perconaReplacements[informationSchema+".innodb_cmpmem"] = func(config.Config) Scraper { return PScrapeInnodbCmpMem{} }
+}

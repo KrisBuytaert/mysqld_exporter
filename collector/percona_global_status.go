@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 const (
@@ -230,3 +232,7 @@ func (PScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch ch
 
 // check interface
 var _ Scraper = PScrapeGlobalStatus{}
+
+func init() {
+	perconaReplacements[globalStatus] = func(config.Config) Scraper { return PScrapeGlobalStatus{} }
+}

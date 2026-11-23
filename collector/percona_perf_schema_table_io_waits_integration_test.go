@@ -25,6 +25,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/testcontainers/testcontainers-go"
 	tcmysql "github.com/testcontainers/testcontainers-go/modules/mysql"
+
+	"github.com/percona/mysqld_exporter/config"
 )
 
 func TestScrapePerfTableIOWaitsMySQLCompatibility(t *testing.T) {
@@ -41,7 +43,7 @@ func TestScrapePerfTableIOWaitsMySQLCompatibility(t *testing.T) {
 			ctx := t.Context()
 			dsn := startPerfTableIOContainer(t, ctx, tc.image)
 
-			instance, err := newInstance(ctx, dsn)
+			instance, err := newInstance(ctx, dsn, config.DefaultExporterMaxOpenConns)
 			if err != nil {
 				t.Fatalf("creating instance: %v", err)
 			}

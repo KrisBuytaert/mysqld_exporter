@@ -67,7 +67,7 @@ func doTestStats(t *testing.T, cnt int, size int, fileName string) *StatsData {
 	var hwms []float64
 	var datas []float64
 
-	for i := 0; i < cnt; i++ {
+	for range cnt {
 		d, hwm, data, err := doTest(size, fileName)
 		if !assert.NoError(t, err) {
 			return nil
@@ -129,7 +129,7 @@ func doTest(iterations int, fileName string) (cpu, hwm, data int64, _ error) {
 
 	total1 := getCPUTime(cmd.Process.Pid)
 
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		_, err = tryGetMetrics(port)
 		if err != nil {
 			return 0, 0, 0, fmt.Errorf("Failed to perform test iteration %d.%s\n Error: %w", i, collectOutput(), err)
@@ -156,9 +156,9 @@ func getCPUMem(pid int) (hwm, data int64) {
 		return 0, 0
 	}
 
-	lines := strings.Split(string(contents), "\n")
+	lines := strings.SplitSeq(string(contents), "\n")
 
-	for _, v := range lines {
+	for v := range lines {
 		if strings.HasPrefix(v, "VmHWM") {
 			val := strings.ReplaceAll(strings.ReplaceAll(strings.Split(v, ":\t")[1], " kB", ""), " ", "")
 			hwm, _ = strconv.ParseInt(val, 10, 64)
@@ -179,8 +179,8 @@ func getCPUTime(pid int) (total int64) {
 	if err != nil {
 		return
 	}
-	lines := strings.Split(string(contents), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(contents), "\n")
+	for line := range lines {
 		fields := strings.Fields(line)
 		numFields := len(fields)
 		if numFields > 3 {

@@ -43,8 +43,8 @@ jobs:
       - name: Run checks
         run: |
           make init
-          bin/golangci-lint run -c=.golangci-required.yml --out-format=line-number | env REVIEWDOG_GITHUB_API_TOKEN=${{ secrets.GITHUB_TOKEN }} bin/reviewdog -f=golangci-lint -level=error -reporter=github-pr-check
-          bin/golangci-lint run -c=.golangci.yml --out-format=line-number | env REVIEWDOG_GITHUB_API_TOKEN=${{ secrets.GITHUB_TOKEN }} bin/reviewdog -f=golangci-lint -level=error -reporter=github-pr-review
+          bin/golangci-lint run -c=.golangci-required.yml --output.checkstyle.path=stdout | env REVIEWDOG_GITHUB_API_TOKEN=${{ secrets.GITHUB_TOKEN }} bin/reviewdog -f=checkstyle -level=error -reporter=github-pr-check
+          bin/golangci-lint run -c=.golangci.yml --output.checkstyle.path=stdout | env REVIEWDOG_GITHUB_API_TOKEN=${{ secrets.GITHUB_TOKEN }} bin/reviewdog -f=checkstyle -level=error -reporter=github-pr-review
 
       - name: Run Tests
         run: |

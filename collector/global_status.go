@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -35,6 +36,20 @@ const (
 
 // Regexp to match various groups of status vars.
 var globalStatusRE = regexp.MustCompile(`^(com|handler|connection_errors|innodb_buffer_pool_pages|innodb_rows|performance_schema)_(.*)$`)
+
+var globalStatusMetricTypes = map[string]prometheus.ValueType{
+	"queries":                 prometheus.CounterValue,
+	"questions":               prometheus.CounterValue,
+	"slow_queries":            prometheus.CounterValue,
+	"slave_running":           prometheus.GaugeValue,
+	"table_open_cache_hits":   prometheus.CounterValue,
+	"table_open_cache_misses": prometheus.CounterValue,
+	"threads_connected":       prometheus.GaugeValue,
+	"threads_running":         prometheus.GaugeValue,
+	"uptime":                  prometheus.GaugeValue,
+	"validate_password_dictionary_file_words_count": prometheus.GaugeValue,
+	"wsrep_cluster_status":                          prometheus.GaugeValue,
+}
 
 // Metric descriptors.
 var (
@@ -81,11 +96,11 @@ var (
 )
 
 // ScrapeGlobalStatus collects from `SHOW GLOBAL STATUS`.
-type ScrapeGlobalStatus struct{}
+type ScrapeGlobalStatus config.EmptyConfig
 
 // Name of the Scraper. Should be unique.
 func (ScrapeGlobalStatus) Name() string {
-	return globalStatus + ".prometheus"
+	return globalStatus
 }
 
 // Help describes the role of the Scraper.
@@ -109,7 +124,7 @@ func (ScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch cha
 
 	var key string
 	var val sql.RawBytes
-	var redoStatus innodbRedoStatus
+	var redoStatus innodbRedoStatus // PERCONA: InnoDB redo log metrics (PMM-15195)
 	var textItems = map[string]string{
 		"wsrep_local_state_uuid":   "",
 		"wsrep_cluster_state_uuid": "",
@@ -123,12 +138,16 @@ func (ScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch cha
 		}
 		if floatVal, ok := parseStatus(val); ok { // Unparsable values are silently skipped.
 			key = validPrometheusName(key)
-			redoStatus.observe(key, floatVal)
+			redoStatus.observe(key, floatVal) // PERCONA
 			match := globalStatusRE.FindStringSubmatch(key)
 			if match == nil {
+				metricType := prometheus.UntypedValue
+				if typed, ok := globalStatusMetricTypes[key]; ok {
+					metricType = typed
+				}
 				ch <- prometheus.MustNewConstMetric(
 					newDesc(globalStatus, key, "Generic metric from SHOW GLOBAL STATUS."),
-					prometheus.UntypedValue,
+					metricType,
 					floatVal,
 				)
 				continue
@@ -177,7 +196,7 @@ func (ScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch cha
 		}
 	}
 
-	redoStatus.collect(ch)
+	redoStatus.collect(ch) // PERCONA
 
 	// mysql_galera_variables_info metric.
 	if textItems["wsrep_local_state_uuid"] != "" {
@@ -199,11 +218,11 @@ func (ScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch cha
 		}
 
 		evsMap := []evsValue{
-			{name: "min_seconds", value: 0, index: 0, help: "PXC/Galera group communication latency. Min value."},
-			{name: "avg_seconds", value: 0, index: 1, help: "PXC/Galera group communication latency. Avg value."},
-			{name: "max_seconds", value: 0, index: 2, help: "PXC/Galera group communication latency. Max value."},
-			{name: "stdev", value: 0, index: 3, help: "PXC/Galera group communication latency. Standard Deviation."},
-			{name: "sample_size", value: 0, index: 4, help: "PXC/Galera group communication latency. Sample Size."},
+			evsValue{name: "min_seconds", value: 0, index: 0, help: "PXC/Galera group communication latency. Min value."},
+			evsValue{name: "avg_seconds", value: 0, index: 1, help: "PXC/Galera group communication latency. Avg value."},
+			evsValue{name: "max_seconds", value: 0, index: 2, help: "PXC/Galera group communication latency. Max value."},
+			evsValue{name: "stdev", value: 0, index: 3, help: "PXC/Galera group communication latency. Standard Deviation."},
+			evsValue{name: "sample_size", value: 0, index: 4, help: "PXC/Galera group communication latency. Sample Size."},
 		}
 
 		evsParsingSuccess := true

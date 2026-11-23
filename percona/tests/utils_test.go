@@ -65,7 +65,7 @@ func launchExporter(fileName string) (cmd *exec.Cmd, port int, collectOutput fun
 	linesStr += fmt.Sprintf("\n--collect.custom_query.lr.directory=%s/low-resolution", absolutePath)
 
 	linesArr := make([]string, 0)
-	for _, l := range strings.Split(linesStr, "\n") {
+	for l := range strings.SplitSeq(linesStr, "\n") {
 		if l = strings.TrimSpace(l); l != "" {
 			linesArr = append(linesArr, l)
 		}
