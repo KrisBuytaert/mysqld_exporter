@@ -19,10 +19,10 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/promslog"
-	"github.com/prometheus/mysqld_exporter/config"
 	"github.com/smartystreets/goconvey/convey"
 )
 

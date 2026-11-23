@@ -30,8 +30,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/prometheus/mysqld_exporter/collector"
-	"github.com/prometheus/mysqld_exporter/config"
+	"github.com/percona/mysqld_exporter/collector"
+	"github.com/percona/mysqld_exporter/config"
 )
 
 // bin stores information about path of executable and attached port

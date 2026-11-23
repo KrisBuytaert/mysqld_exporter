@@ -18,8 +18,8 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/mysqld_exporter/config"
 )
 
 type Runtime struct {

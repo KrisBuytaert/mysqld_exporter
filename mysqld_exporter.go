@@ -32,8 +32,8 @@ import (
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 
-	"github.com/prometheus/mysqld_exporter/collector"
-	"github.com/prometheus/mysqld_exporter/config"
+	"github.com/percona/mysqld_exporter/collector"
+	"github.com/percona/mysqld_exporter/config"
 )
 
 const defaultTimeoutOffsetSeconds = 0.25

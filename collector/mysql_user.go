@@ -22,8 +22,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/mysqld_exporter/config"
 )
 
 // mysqlSubsystem used for metric names.

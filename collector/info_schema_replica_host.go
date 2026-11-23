@@ -20,8 +20,8 @@ import (
 	"log/slog"
 
 	MySQL "github.com/go-sql-driver/mysql"
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/mysqld_exporter/config"
 )
 
 const replicaHostQuery = `

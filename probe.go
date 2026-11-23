@@ -20,10 +20,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/percona/mysqld_exporter/collector"
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/mysqld_exporter/collector"
-	"github.com/prometheus/mysqld_exporter/config"
 )
 
 func handleProbe(baseConfig config.Config, timeoutOffsetSeconds float64, logger *slog.Logger) http.HandlerFunc {

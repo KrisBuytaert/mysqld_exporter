@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/percona/mysqld_exporter/config"
 	"github.com/prometheus/common/promslog"
-	"github.com/prometheus/mysqld_exporter/config"
 )
 
 func TestNewRuntimeValidatesConfig(t *testing.T) {
