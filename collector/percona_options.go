@@ -14,7 +14,9 @@
 package collector
 
 import (
+	"context"
 	"database/sql"
+	"runtime/pprof"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -79,4 +81,12 @@ func (e *Exporter) logScraperError(scraper Scraper, err error) {
 func dsnHasParams(dsn string) bool {
 	i := strings.LastIndex(dsn, "/")
 	return i >= 0 && strings.Contains(dsn[i:], "?")
+}
+
+// perconaPprofLabels labels the scraper goroutine with scraper=<name> so CPU
+// and goroutine profiles from /debug/pprof can be attributed to a collector.
+// The returned function restores the parent's labels.
+func perconaPprofLabels(ctx context.Context, scraper Scraper) func() {
+	pprof.SetGoroutineLabels(pprof.WithLabels(ctx, pprof.Labels("scraper", scraper.Name())))
+	return func() { pprof.SetGoroutineLabels(ctx) }
 }

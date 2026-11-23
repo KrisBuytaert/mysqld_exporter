@@ -208,6 +208,7 @@ func (e *Exporter) scrape(ctx context.Context, ch chan<- prometheus.Metric) floa
 		}
 
 		wg.Go(func() {
+			defer perconaPprofLabels(ctx, scraper)() // PERCONA: pprof goroutine label per scraper (PMM-14686)
 			label := "collect." + scraper.Name()
 			scrapeTime := time.Now()
 			collectorSuccess := 1.0

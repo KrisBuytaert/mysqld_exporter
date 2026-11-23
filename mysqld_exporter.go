@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	_ "net/http/pprof" //nolint:gosec // PERCONA: /debug/pprof on the default mux (PMM-14686)
 	"os"
 	"strconv"
 	"time"
