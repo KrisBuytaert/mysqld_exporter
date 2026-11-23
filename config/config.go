@@ -180,7 +180,7 @@ func NewConfigWithDefaults() Config {
 }
 
 func DefaultCollectorConfig() map[string]bool {
-	return map[string]bool{
+	return perconaCollectorDefaults(map[string]bool{ // PERCONA: Percona collectors and defaults, see percona.go
 		"global_status":                                    true,
 		"global_variables":                                 true,
 		"slave_status":                                     true,
@@ -219,7 +219,7 @@ func DefaultCollectorConfig() map[string]bool {
 		"slave_hosts":                                      false,
 		"info_schema.replica_host":                         false,
 		"info_schema.rocksdb_perf_context":                 false,
-	}
+	})
 }
 
 func (c Config) Validate() error {

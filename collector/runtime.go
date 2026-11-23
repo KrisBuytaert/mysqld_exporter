@@ -88,7 +88,7 @@ func EnabledScrapers(cfg config.Config) []Scraper {
 func AllScrapers(cfg config.Config) []Scraper {
 	emptyConfig := config.EmptyConfig{}
 
-	return []Scraper{
+	return perconaScrapers(cfg, []Scraper{ // PERCONA: Percona scrapers and ".prometheus" variants, see percona_registry.go
 		ScrapeGlobalStatus(emptyConfig),
 		ScrapeGlobalVariables(emptyConfig),
 		ScrapeSlaveStatus(emptyConfig),
@@ -127,5 +127,5 @@ func AllScrapers(cfg config.Config) []Scraper {
 		ScrapeSlaveHosts(emptyConfig),
 		ScrapeReplicaHost(emptyConfig),
 		ScrapeRocksDBPerfContext(emptyConfig),
-	}
+	})
 }
