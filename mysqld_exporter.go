@@ -314,10 +314,7 @@ func newHandler(baseConfig config.Config, timeoutOffsetSeconds float64, logger *
 			registry.MustRegister(c)
 		}
 
-		gatherers := prometheus.Gatherers{
-			prometheus.DefaultGatherer,
-			registry,
-		}
+		gatherers := perconaGatherers(cfg, registry) // PERCONA: no default gatherer with standard.* scrapers
 		// Delegate http serving to Prometheus client library, which will call collector.Collect.
 		h := promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{})
 		h.ServeHTTP(w, r)

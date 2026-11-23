@@ -18,7 +18,11 @@ import "maps"
 // PERCONA: collector names the Percona build adds to upstream's
 // DefaultCollectorConfig, with their default state. Keep in sync with
 // collector/percona_registry.go.
-var perconaCollectors = map[string]bool{}
+var perconaCollectors = map[string]bool{
+	// Exporter's own Go runtime and process metrics (PMM-2038, PMM-14440).
+	"standard.go":      false,
+	"standard.process": false,
+}
 
 // perconaCollectorDefaults extends upstream's default collector map.
 func perconaCollectorDefaults(upstream map[string]bool) map[string]bool {
