@@ -81,26 +81,8 @@ func (ScrapeSlaveStatus) Version() float64 {
 
 // Scrape collects data from database connection and sends it over channel as prometheus metric.
 func (ScrapeSlaveStatus) Scrape(ctx context.Context, instance *instance, ch chan<- prometheus.Metric, logger *slog.Logger) error {
-	var (
-		slaveStatusRows *sql.Rows
-		err             error
-	)
-	db := instance.getDB()
-	// Try the both syntax for MySQL/Percona and MariaDB
-	for _, query := range slaveStatusQueries {
-		slaveStatusRows, err = db.QueryContext(ctx, query)
-		if err != nil { // MySQL/Percona
-			// Leverage lock-free SHOW SLAVE STATUS by guessing the right suffix
-			for _, suffix := range slaveStatusQuerySuffixes {
-				slaveStatusRows, err = db.QueryContext(ctx, fmt.Sprint(query, suffix))
-				if err == nil {
-					break
-				}
-			}
-		} else { // MariaDB
-			break
-		}
-	}
+	// PERCONA: pick the statement from the detected flavor and version, probe only on a syntax error (PMM-7).
+	slaveStatusRows, err := querySlaveStatus(ctx, instance)
 	if err != nil {
 		return err
 	}
