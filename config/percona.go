@@ -30,6 +30,9 @@ var perconaCollectors = map[string]bool{
 	"global_status.prometheus": false,
 	// upstream info_schema.processlist, taken over by the Percona implementation.
 	"info_schema.processlist.prometheus": false,
+	// upstream innodb_cmp/innodb_cmpmem, taken over by the Percona implementations.
+	"info_schema.innodb_cmp.prometheus":    false,
+	"info_schema.innodb_cmpmem.prometheus": false,
 }
 
 // perconaCollectorDefaults extends upstream's default collector map.
