@@ -124,6 +124,7 @@ func (ScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch cha
 
 	var key string
 	var val sql.RawBytes
+	var redoStatus innodbRedoStatus // PERCONA: InnoDB redo log metrics (PMM-15195)
 	var textItems = map[string]string{
 		"wsrep_local_state_uuid":   "",
 		"wsrep_cluster_state_uuid": "",
@@ -137,6 +138,7 @@ func (ScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch cha
 		}
 		if floatVal, ok := parseStatus(val); ok { // Unparsable values are silently skipped.
 			key = validPrometheusName(key)
+			redoStatus.observe(key, floatVal) // PERCONA
 			match := globalStatusRE.FindStringSubmatch(key)
 			if match == nil {
 				metricType := prometheus.UntypedValue
@@ -193,6 +195,8 @@ func (ScrapeGlobalStatus) Scrape(ctx context.Context, instance *instance, ch cha
 			textItems[key] = string(val)
 		}
 	}
+
+	redoStatus.collect(ch) // PERCONA
 
 	// mysql_galera_variables_info metric.
 	if textItems["wsrep_local_state_uuid"] != "" {
